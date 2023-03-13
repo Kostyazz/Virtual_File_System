@@ -3,6 +3,7 @@ using namespace TestTask;
 
 int main()
 {
+	/*
 	std::fstream fs;
 	fs.open("chunk1.bin", std::fstream::out);
 	char zeroes[8] = { 0 };
@@ -11,9 +12,10 @@ int main()
 	fs << "chunk1.bin";
 	fs.write(tailingZeroes, sizeof tailingZeroes);
 	fs.flush();
-
+	*/
 	VFS vfs;
-	File* f = vfs.Create("chunk1.bin\\aaa\\bbb");
+	File* f = vfs.Create("chunk1.bin\\aaa\\ccc.txt");
 	vfs.Close(f);
-	File* f1 = vfs.Create("chunk1.bin\\aaa\\bbb");
+	File* f1 = vfs.Open("chunk1.bin\\aaa\\ccc.txt");
+	vfs.Close(f1);
 }

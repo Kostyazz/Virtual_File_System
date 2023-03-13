@@ -30,30 +30,10 @@ size_t getHashPos(string s) {
 	return 8 + MaxNameLength + 8 * (hash<string>{}(s) % HashDivider);
 }
 
-
-File * VFS::Open(const char * fullPath)
-{
+File * openOrCreate(const char * fullPath, bool open) {
 	unique_ptr<vector<string> > path = parsePath(fullPath);
 	string realFileName = path->front();
 	unique_ptr<fstream> fs(new fstream());
-
-	//todo follow path
-
-	if (File::mutexMap[fullPath].try_lock_shared()) {
-		fs->open(realFileName, fstream::in);
-		File* f = new File(fullPath, std::move(fs), File::read);
-		return f;
-	} else {
-		return nullptr;
-	}
-}
-
-File * VFS::Create(const char * fullPath)
-{
-	unique_ptr<vector<string> > path = parsePath(fullPath);
-	string realFileName = path->front();
-	unique_ptr<fstream> fs(new fstream());
-
 	fs->open(realFileName, fstream::in | fstream::out | fstream::binary);
 
 	char buf8[8];
@@ -75,10 +55,12 @@ File * VFS::Create(const char * fullPath)
 			fs->read(buf8, 8); //reading nextLink value
 			//name of directory or file
 			fs->read(curName, MaxNameLength);
-		} 
+		}
 		//if directory or file not found in hash table, create it
 		if (strcmp(curName, (*path)[i].c_str())) {
-			File::mutexMap[fullPath].lock(); //file doesn't exist, no need to check for it being open
+			if (open) {
+				throw runtime_error("ERROR: File not found");
+			}
 			File::mutexMap[realFileName].lock(); //only one thread can write to real file
 
 			fs->seekg(0, ios::end);
@@ -91,23 +73,35 @@ File * VFS::Create(const char * fullPath)
 			fs->write(Zeroes, BlockSize - 8 - (*path)[i].length());
 			fs->flush();
 
-			File::mutexMap[fullPath].unlock();
 			File::mutexMap[realFileName].unlock();
-		} else {//directory or file found
-			
 		}
-
 	}
-	//todo follow path
 
-	if (File::mutexMap[fullPath].try_lock()) {
+	fs->seekp(*nextLink + 8 + MaxNameLength, ios::beg);
+	bool opened;
+	if (open) {
+		opened = File::mutexMap[fullPath].try_lock_shared();
+	} else {
+		opened = File::mutexMap[fullPath].try_lock();
+	}
+	if (opened) {
 		fs->open(realFileName, fstream::out | fstream::in | fstream::binary);
-		File* f = new File(fullPath, std::move(fs), File::write);
+		File* f = new File(fullPath, std::move(fs), open ? File::read : File::write);
 		return f;
 	}
 	else {
 		return nullptr;
 	}
+}
+
+File * VFS::Open(const char * fullPath)
+{
+	return openOrCreate(fullPath, true);
+}
+
+File * VFS::Create(const char * fullPath)
+{
+	return openOrCreate(fullPath, false);
 }
 
 size_t VFS::Read(File * f, char * buff, size_t len)
@@ -117,6 +111,7 @@ size_t VFS::Read(File * f, char * buff, size_t len)
 
 size_t VFS::Write(File * f, char * buff, size_t len)
 {
+
 	return size_t();
 }
 
