@@ -14,6 +14,8 @@ const size_t BlockSize = 1024;
 const size_t HashDivider = (BlockSize - MaxNameLength - 8) / 8; //95
 const char Zeroes[BlockSize] = { 0 };
 
+unordered_map<std::string, std::shared_mutex> TestTask::VFS::mutexMap;
+
 unique_ptr<vector<string> > parsePath(const char * name) {
 	unique_ptr<vector<string> > v(new vector<string>);
 	string s = string(name);
@@ -30,7 +32,7 @@ size_t getHashPos(string s) {
 	return 8 + MaxNameLength + 8 * (hash<string>{}(s) % HashDivider);
 }
 
-File * openOrCreate(const char * fullPath, bool open) {
+File * VFS::openOrCreate(const char * fullPath, bool open) {
 	unique_ptr<vector<string> > path = parsePath(fullPath);
 	string realFileName = path->front();
 	unique_ptr<fstream> fs(new fstream());
@@ -61,7 +63,7 @@ File * openOrCreate(const char * fullPath, bool open) {
 			if (open) {
 				throw runtime_error("ERROR: File not found");
 			}
-			File::mutexMap[realFileName].lock(); //only one thread can write to real file
+			mutexMap[realFileName].lock(); //only one thread can write to real file
 
 			fs->seekg(0, ios::end);
 			*nextLink = fs->tellg();
@@ -73,16 +75,16 @@ File * openOrCreate(const char * fullPath, bool open) {
 			fs->write(Zeroes, BlockSize - 8 - (*path)[i].length());
 			fs->flush();
 
-			File::mutexMap[realFileName].unlock();
+			mutexMap[realFileName].unlock();
 		}
 	}
 
 	fs->seekp(*nextLink + 8 + MaxNameLength, ios::beg);
 	bool opened;
 	if (open) {
-		opened = File::mutexMap[fullPath].try_lock_shared();
+		opened = mutexMap[fullPath].try_lock_shared();
 	} else {
-		opened = File::mutexMap[fullPath].try_lock();
+		opened = mutexMap[fullPath].try_lock();
 	}
 	if (opened) {
 		fs->open(realFileName, fstream::out | fstream::in | fstream::binary);
@@ -117,6 +119,12 @@ size_t VFS::Write(File * f, char * buff, size_t len)
 
 void VFS::Close(File * f)
 {
+	if (f->openFor == File::read) {
+		mutexMap[f->fullFilePath].unlock_shared();
+	}
+	else {
+		mutexMap[f->fullFilePath].unlock();
+	}
 	delete f;
 }
 
