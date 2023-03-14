@@ -11,7 +11,7 @@ using namespace TestTask;
 
 const char Zeroes[VFS::BlockSize] = { 0 };
 string delimiter{ "\\" };
-concurrency::concurrent_unordered_map<std::string, std::shared_mutex*> TestTask::VFS::mutexMap;
+unordered_map<std::string, std::shared_ptr<std::shared_mutex> > TestTask::VFS::mutexMap;
 
 unique_ptr<vector<string> > parsePath(const char * name) {
 	unique_ptr<vector<string> > v(new vector<string>);
@@ -30,6 +30,7 @@ size_t getHashPos(string s) {
 }
 
 File * VFS::openOrCreate(const char * fullPath, bool open) {
+	mutexMap.try_emplace(string(fullPath), new shared_mutex);
 	unique_ptr<vector<string> > path = parsePath(fullPath);
 	string realFileName = path->front();
 	unique_ptr<fstream> fs(new fstream());
@@ -57,6 +58,9 @@ File * VFS::openOrCreate(const char * fullPath, bool open) {
 			//name of directory or file
 			fs->read(curName, MaxNameLength);
 		}
+
+		mutexMap[realFileName]->unlock_shared();
+
 		//if directory or file not found in hash table, create it
 		if (strcmp(curName, (*path)[i].c_str())) {
 			if (open) {
@@ -64,7 +68,6 @@ File * VFS::openOrCreate(const char * fullPath, bool open) {
 				//throw runtime_error("ERROR: File not found");
 			}
 
-			mutexMap[realFileName]->unlock_shared();
 			mutexMap[realFileName]->lock(); //only one thread can write to real file
 
 			fs->seekg(0, ios::end);
@@ -78,7 +81,6 @@ File * VFS::openOrCreate(const char * fullPath, bool open) {
 			fs->flush();
 
 			mutexMap[realFileName]->unlock();
-			mutexMap[realFileName]->lock_shared();
 
 			if (i == path->size() - 1) {
 				fs->seekg(*nextLink + 8 + MaxNameLength, ios::beg);
@@ -86,7 +88,6 @@ File * VFS::openOrCreate(const char * fullPath, bool open) {
 		}
 	}
 
-	mutexMap[realFileName]->unlock_shared();
 
 	fs->seekp(0, ios::cur);
 

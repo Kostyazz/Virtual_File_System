@@ -63,7 +63,7 @@ int main()
 	VFS vfs;
 
 	for (string s : realFiles) {
-		VFS::mutexMap.insert(make_pair(s, new shared_mutex));
+		VFS::mutexMap.emplace(s, new shared_mutex);
 	}
 
 	std::thread t1([&]() {
