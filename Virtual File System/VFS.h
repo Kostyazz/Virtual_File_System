@@ -2,7 +2,6 @@
 #include "IVFS.h"
 #include <unordered_map>
 #include <shared_mutex>
-#include <concurrent_unordered_map.h>
 
 namespace TestTask {
 	struct VFS : public IVFS
