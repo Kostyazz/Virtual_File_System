@@ -46,11 +46,7 @@ File * VFS::openOrCreate(const char * fullPath, bool open) {
 	bool notFound = false;
 
 	for (size_t i = 1; i < path->size(); i++) {
-		if (i == path->size()) {
-			*prevLink = *nextLink;
-		} else {
-			*prevLink = getHashPos((*path)[i]);
-		}
+		*prevLink = getHashPos((*path)[i]);
 		fs->seekg(*prevLink, ios::beg);
 		fs->read(buf8, 8); //reading nextLink value
 		//unwinding collisions
@@ -80,10 +76,14 @@ File * VFS::openOrCreate(const char * fullPath, bool open) {
 			fs->flush();
 
 			mutexMap[realFileName].unlock();
+
+			if (i == path->size() - 1) {
+				fs->seekg(*nextLink + 8 + MaxNameLength, ios::beg);
+			}
 		}
 	}
 
-	fs->seekp(*nextLink + 8 + MaxNameLength, ios::beg);
+	fs->seekp(0, ios::cur);
 
 	if (open) {
 		if (mutexMap[fullPath].try_lock_shared()) {
@@ -114,7 +114,35 @@ File * VFS::Create(const char * fullPath)
 
 size_t VFS::Read(File * f, char * buff, size_t len)
 {
-	return size_t();
+	char buf8[8] = { 0 };
+	_int64* nextLink = static_cast<_int64*>((void*)buf8);
+
+	f->fs->clear();
+	_int64 curPos = f->fs->tellp();
+	size_t bytesRead = 0;
+	size_t bytesFromBlock = 0;
+	_int64 bytesInBlock = 0;
+	bool stop = 0;
+
+	while (bytesRead < len && ! stop) {
+		f->fs->read(static_cast<char*>((void*)&bytesInBlock), 8);
+		bytesFromBlock = min(_int64(min(len - bytesRead, BlockSize - (curPos % BlockSize) - 16)), bytesInBlock);
+		f->fs->read(buff + bytesRead, bytesFromBlock);
+		bytesRead += bytesFromBlock;
+		if (bytesFromBlock < BlockSize - (curPos % BlockSize) - 16) {
+			stop = true;
+		}
+		if (bytesRead < len && ! stop) {
+			f->fs->read(buf8, 8);
+			if (*nextLink <= 0) {
+				break;
+			} else {
+				f->fs->seekp(*nextLink, ios::beg);
+				curPos = f->fs->tellp();
+			}
+		}
+	}
+	return bytesRead;
 }
 
 size_t VFS::Write(File * f, char * buff, size_t len)
@@ -125,18 +153,19 @@ size_t VFS::Write(File * f, char * buff, size_t len)
 	f->fs->clear();
 	_int64 curPos = f->fs->tellp();
 	size_t bytesWritten = 0;
-	size_t bytesToBlock = 0;
+	_int64 bytesToBlock = 0;
 
 	mutexMap[f->realFileName].lock();
 
 	while (bytesWritten < len) {
-		bytesToBlock = min(len - bytesWritten, BlockSize - (curPos % BlockSize) - 8);
+		bytesToBlock = min(len - bytesWritten, BlockSize - (curPos % BlockSize) - 16);
+		f->fs->write(static_cast<char*>((void*)&bytesToBlock), 8);
 		f->fs->write(buff + bytesWritten, bytesToBlock);
 		bytesWritten += bytesToBlock;
 		f->fs->seekp(0, ios::cur);
 		f->fs->read(buf8, 8);
-		curPos = f->fs->tellp();
-		if (*nextLink == 0) {
+		curPos = size_t(f->fs->tellg());
+		if (*nextLink <= 0) {
 			f->fs->seekp(0, ios::end);
 			*nextLink = f->fs->tellp();
 			f->fs->seekp(curPos - 8, ios::beg);
