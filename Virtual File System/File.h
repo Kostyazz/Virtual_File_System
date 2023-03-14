@@ -15,7 +15,6 @@ namespace TestTask
 
 		File(std::string name, std::string _realFileName, std::unique_ptr<std::fstream> _fs, openType ot) : 
 			fullFilePath(name), realFileName(_realFileName), fs(std::move(_fs)), openFor(ot) {};
-		~File();
 	private:
 
 	};

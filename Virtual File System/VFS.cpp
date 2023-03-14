@@ -11,7 +11,7 @@ using namespace TestTask;
 
 const char Zeroes[VFS::BlockSize] = { 0 };
 string delimiter{ "\\" };
-unordered_map<std::string, std::shared_mutex*> TestTask::VFS::mutexMap;
+concurrency::concurrent_unordered_map<std::string, std::shared_mutex*> TestTask::VFS::mutexMap;
 
 unique_ptr<vector<string> > parsePath(const char * name) {
 	unique_ptr<vector<string> > v(new vector<string>);
@@ -30,7 +30,6 @@ size_t getHashPos(string s) {
 }
 
 File * VFS::openOrCreate(const char * fullPath, bool open) {
-	mutexMap.try_emplace(string(fullPath), new shared_mutex);
 	unique_ptr<vector<string> > path = parsePath(fullPath);
 	string realFileName = path->front();
 	unique_ptr<fstream> fs(new fstream());
