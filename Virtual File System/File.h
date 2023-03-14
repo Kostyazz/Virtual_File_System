@@ -1,5 +1,7 @@
 #pragma once
 #include <string>
+#include <unordered_map>
+#include <shared_mutex>
 #include <fstream>
 
 namespace TestTask
@@ -7,6 +9,7 @@ namespace TestTask
 	struct File 
 	{
 	public:
+		static std::unordered_map<std::string, std::shared_mutex> mutexMap;
 		std::unique_ptr<std::fstream> fs;
 		std::string fullFilePath;
 		enum openType {read, write};
