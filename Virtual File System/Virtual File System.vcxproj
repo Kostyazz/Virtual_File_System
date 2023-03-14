@@ -152,7 +152,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="File.cpp" />
     <ClCompile Include="VFS.cpp" />
     <ClCompile Include="Virtual File System.cpp" />
   </ItemGroup>

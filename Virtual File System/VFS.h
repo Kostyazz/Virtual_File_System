@@ -2,6 +2,7 @@
 #include "IVFS.h"
 #include <unordered_map>
 #include <shared_mutex>
+#include <concurrent_unordered_map.h>
 
 namespace TestTask {
 	struct VFS : public IVFS
@@ -13,8 +14,11 @@ namespace TestTask {
 		size_t Write(File* f, char* buff, size_t len) override;
 		void Close(File* f) override;
 		~VFS() override;
+		static const size_t BlockSize = 1024;
+		static const size_t MaxNameLength = 256; //including \0
+		static const size_t HashDivider = (BlockSize - MaxNameLength - 8) / 8; //95
+		static std::unordered_map<std::string, std::shared_mutex*> mutexMap;
 	private:
-		static std::unordered_map<std::string, std::shared_mutex> mutexMap;
 		File * openOrCreate(const char * fullPath, bool open);
 	};
 }

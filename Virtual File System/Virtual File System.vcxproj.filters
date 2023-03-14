@@ -18,9 +18,6 @@
     <ClCompile Include="Virtual File System.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="File.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="VFS.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

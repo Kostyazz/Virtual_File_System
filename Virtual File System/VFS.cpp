@@ -9,13 +9,9 @@
 using namespace std;
 using namespace TestTask;
 
-const string delimiter = "\\";
-const size_t MaxNameLength = 256; //including \0
-const size_t BlockSize = 1024;
-const size_t HashDivider = (BlockSize - MaxNameLength - 8) / 8; //95
-const char Zeroes[BlockSize] = { 0 };
-
-unordered_map<std::string, std::shared_mutex> TestTask::VFS::mutexMap;
+const char Zeroes[VFS::BlockSize] = { 0 };
+string delimiter{ "\\" };
+unordered_map<std::string, std::shared_mutex*> TestTask::VFS::mutexMap;
 
 unique_ptr<vector<string> > parsePath(const char * name) {
 	unique_ptr<vector<string> > v(new vector<string>);
@@ -30,10 +26,11 @@ unique_ptr<vector<string> > parsePath(const char * name) {
 }
 
 size_t getHashPos(string s) {
-	return 8 + MaxNameLength + 8 * (hash<string>{}(s) % HashDivider);
+	return 8 + VFS::MaxNameLength + 8 * (hash<string>{}(s) % VFS::HashDivider);
 }
 
 File * VFS::openOrCreate(const char * fullPath, bool open) {
+	mutexMap.try_emplace(string(fullPath), new shared_mutex);
 	unique_ptr<vector<string> > path = parsePath(fullPath);
 	string realFileName = path->front();
 	unique_ptr<fstream> fs(new fstream());
@@ -48,6 +45,9 @@ File * VFS::openOrCreate(const char * fullPath, bool open) {
 	for (size_t i = 1; i < path->size(); i++) {
 		*prevLink = getHashPos((*path)[i]);
 		fs->seekg(*prevLink, ios::beg);
+
+		mutexMap[realFileName]->lock_shared();
+
 		fs->read(buf8, 8); //reading nextLink value
 		//unwinding collisions
 		while (*nextLink && strcmp(curName, (*path)[i].c_str())) {
@@ -61,9 +61,12 @@ File * VFS::openOrCreate(const char * fullPath, bool open) {
 		//if directory or file not found in hash table, create it
 		if (strcmp(curName, (*path)[i].c_str())) {
 			if (open) {
-				throw runtime_error("ERROR: File not found");
+				return nullptr;
+				//throw runtime_error("ERROR: File not found");
 			}
-			mutexMap[realFileName].lock(); //only one thread can write to real file
+
+			mutexMap[realFileName]->unlock_shared();
+			mutexMap[realFileName]->lock(); //only one thread can write to real file
 
 			fs->seekg(0, ios::end);
 			*nextLink = fs->tellg();
@@ -75,7 +78,8 @@ File * VFS::openOrCreate(const char * fullPath, bool open) {
 			fs->write(Zeroes, BlockSize - 8 - (*path)[i].length());
 			fs->flush();
 
-			mutexMap[realFileName].unlock();
+			mutexMap[realFileName]->unlock();
+			mutexMap[realFileName]->lock_shared();
 
 			if (i == path->size() - 1) {
 				fs->seekg(*nextLink + 8 + MaxNameLength, ios::beg);
@@ -83,17 +87,19 @@ File * VFS::openOrCreate(const char * fullPath, bool open) {
 		}
 	}
 
+	mutexMap[realFileName]->unlock_shared();
+
 	fs->seekp(0, ios::cur);
 
 	if (open) {
-		if (mutexMap[fullPath].try_lock_shared()) {
+		if (mutexMap[fullPath]->try_lock_shared()) {
 			File* f = new File(fullPath, realFileName, std::move(fs), File::read);
 			return f;
 		} else {
 			return nullptr;
 		}
 	} else {
-		if (mutexMap[fullPath].try_lock()) {
+		if (mutexMap[fullPath]->try_lock()) {
 			File* f = new File(fullPath, realFileName, std::move(fs), File::write);
 			return f;
 		} else {
@@ -124,6 +130,8 @@ size_t VFS::Read(File * f, char * buff, size_t len)
 	_int64 bytesInBlock = 0;
 	bool stop = 0;
 
+	mutexMap[f->realFileName]->lock_shared();
+
 	while (bytesRead < len && ! stop) {
 		f->fs->read(static_cast<char*>((void*)&bytesInBlock), 8);
 		bytesFromBlock = min(_int64(min(len - bytesRead, BlockSize - (curPos % BlockSize) - 16)), bytesInBlock);
@@ -142,6 +150,9 @@ size_t VFS::Read(File * f, char * buff, size_t len)
 			}
 		}
 	}
+
+	mutexMap[f->realFileName]->unlock_shared();
+
 	return bytesRead;
 }
 
@@ -155,7 +166,7 @@ size_t VFS::Write(File * f, char * buff, size_t len)
 	size_t bytesWritten = 0;
 	_int64 bytesToBlock = 0;
 
-	mutexMap[f->realFileName].lock();
+	mutexMap[f->realFileName]->lock();
 
 	while (bytesWritten < len) {
 		bytesToBlock = min(len - bytesWritten, BlockSize - (curPos % BlockSize) - 16);
@@ -179,17 +190,17 @@ size_t VFS::Write(File * f, char * buff, size_t len)
 	f->fs->write(tailingZeroes, BlockSize - bytesToBlock - 8);
 	f->fs->flush();
 
-	mutexMap[f->realFileName].unlock();
+	mutexMap[f->realFileName]->unlock();
 	return bytesWritten;
 }
 
 void VFS::Close(File * f)
 {
 	if (f->openFor == File::read) {
-		mutexMap[f->fullFilePath].unlock_shared();
+		mutexMap[f->fullFilePath]->unlock_shared();
 	}
 	else {
-		mutexMap[f->fullFilePath].unlock();
+		mutexMap[f->fullFilePath]->unlock();
 	}
 	delete f;
 }
