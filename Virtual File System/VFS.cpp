@@ -87,6 +87,9 @@ File * VFS::openOrCreate(const char * fullPath, bool open) {
 				fs->seekp(*nextLink + 8 + MaxNameLength, ios::beg);
 			}
 		}
+		else {
+			
+		}
 	}
 	//stream position is set to read bytesInFile value
 	fs->seekp(0, ios::cur);
@@ -126,7 +129,7 @@ size_t VFS::Read(File * f, char * buff, size_t len)
 	_int64* nextLink = static_cast<_int64*>((void*)buf8);
 
 	f->fs->clear();
-	_int64 curPos = f->fs->tellp();
+	size_t curPos = f->curPos;
 	size_t bytesRead = 0;
 	size_t bytesFromBlock = 0;
 	_int64 bytesInBlock = 0;
@@ -135,13 +138,12 @@ size_t VFS::Read(File * f, char * buff, size_t len)
 	mutexMap[f->realFileName]->lock_shared();
 
 	while (bytesRead < len && ! stop) {
-		f->fs->seekp(curPos - curPos % BlockSize);
 		f->fs->read(static_cast<char*>((void*)&bytesInBlock), 8);
 		f->fs->seekp(curPos, ios::beg);
-		bytesFromBlock = min(_int64(min(len - bytesRead, BlockSize - (curPos % BlockSize) - 16)), bytesInBlock - curPos);
+		bytesFromBlock = min(size_t(min(len - bytesRead, BlockSize - (curPos % BlockSize) - 8)), bytesInBlock - curPos);
 		f->fs->read(buff + bytesRead, bytesFromBlock);
 		bytesRead += bytesFromBlock;
-		if (bytesFromBlock < BlockSize - (curPos % BlockSize) - 16) {
+		if (bytesFromBlock < BlockSize - (curPos % BlockSize) - 8) {
 			stop = true;
 		}
 		if (bytesRead < len && ! stop) {
@@ -173,30 +175,48 @@ size_t VFS::Write(File * f, char * buff, size_t len)
 	mutexMap[f->realFileName]->lock();
 
 	while (bytesWritten < len) {
-		bytesToBlock = min(len - bytesWritten, BlockSize - (curPos % BlockSize) - 16);
+		//bytes we are going to write to this block
+		bytesToBlock = min(len - bytesWritten, BlockSize - (curPos % BlockSize) - 8);
+		//next 8 bytes tell how many bytes already written in this block (by previous calls of Write() )
 		f->fs->read(buf8, 8);
 		size_t bytesInBlock = *intBuf;
+		//rewriting them with new value
 		f->fs->seekp(-8, ios::cur);
 		*intBuf = bytesInBlock + bytesToBlock;
 		f->fs->write(buf8, 8);
+
+		//writing actual file data
+		f->fs->seekp(curPos, ios::beg);
 		f->fs->write(buff + bytesWritten, bytesToBlock);
 		bytesWritten += bytesToBlock;
-		curPos = size_t(f->fs->tellp());
-		f->fs->seekp(0, ios::cur);
-		f->fs->read(buf8, 8);
-		if (*intBuf == 0) {
-			f->fs->seekp(0, ios::end);
-			*intBuf = f->fs->tellp();
-			f->fs->seekp(curPos, ios::beg);
-			f->fs->write(buf8, 8);
+		//if we still have data to write to next blocks...
+		if (bytesWritten < len) {
+			//saving current position (8 bytes before end of block)
+			curPos = size_t(f->fs->tellp());
+			f->fs->seekp(0, ios::cur);
+			//reading next block position
+			f->fs->read(buf8, 8);
+			//if 0, we will write to end of file
+			if (*intBuf == 0) {
+				f->fs->seekp(0, ios::end);
+				*intBuf = f->fs->tellp();
+				//filling new block with zeroes
+				f->fs->write(Zeroes, BlockSize);
+				//getting back to previous block, rewriting it's link to the new one
+				f->fs->seekp(curPos, ios::beg);
+				f->fs->write(buf8, 8);
+			}
+			//now *intBuf has next block's position
+			f->fs->seekp(*intBuf, ios::beg);
+			//fs->tellp points to bytesInBlock value, while curPos points to where we'll write
+			curPos = size_t(f->fs->tellp()) + 8;
 		}
-		f->fs->write(Zeroes, 8);
-		curPos = size_t(f->fs->tellp());
 	}
-	size_t zeroesNeeded = BlockSize - (curPos % BlockSize);
-	f->fs->write(Zeroes, zeroesNeeded);
+	//if we finished writing, save curPos for possible next call of Write()
+	curPos = size_t(f->fs->tellp());
 	f->fs->flush();
-	f->fs->seekp(0 - zeroesNeeded, ios::cur);
+	f->fs->seekp(curPos - (curPos % BlockSize), ios::beg);
+	f->curPos = curPos;
 
 	mutexMap[f->realFileName]->unlock();
 	return bytesWritten;

@@ -25,8 +25,8 @@ int main()
 
 	const int n1 = 5000;
 	const int n2 = 6000;
-	const int n3 = 10'764;
-	const int n4 = 15'289;
+	const int n3 = 11'000;
+	const int n4 = 15'000;
 	const int n5 = 20'000;
 
 	char toWrite1[n1 + 1] = { 0 };
@@ -83,8 +83,8 @@ int main()
 		}
 		f2 = vfs.Create("chunk1.bin\\dir1\\1c.txt");
 		if (f2) {
-			vfs.Write(f2, toWrite2, n3);
-			vfs.Write(f2, toWrite4, n5);
+			vfs.Write(f2, toWrite4, n3);
+			vfs.Write(f2, toWrite5, n4);
 		}
 		if (f1) vfs.Close(f1);
 
@@ -108,8 +108,8 @@ int main()
 	if (f2) vfs.Close(f2);
 	if (f3) vfs.Close(f3);
 //	t1.join(); */
-	cout << toWrite1 << endl;
-	cout << toRead1 << endl;
+	cout << toWrite3 << endl;
+	cout << toRead3 << endl;
 	cout << strcmp(toWrite1, toRead1) << endl;
 	cout << strcmp(toWrite2, toRead2) << endl;
 	cout << strcmp(toWrite3, toRead3) << endl;
