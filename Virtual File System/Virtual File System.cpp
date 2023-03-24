@@ -62,56 +62,57 @@ int main()
 		VFS::mutexMap.emplace(s, new shared_mutex);
 	}
 
-//	std::thread t1([&]() {
+	std::thread t1([&]() {
 		File* f1 = vfs.Create("chunk1.bin\\dir1\\1a.txt");
 		if (f1) {
 			vfs.Write(f1, toWrite1, n1);
 			vfs.Write(f1, toWrite2, n2);
 		}
+		if (f1) vfs.Close(f1);
 		File* f2 = vfs.Create("chunk1.bin\\dir2\\2a.txt");
 		if (f2) {
 			vfs.Write(f2, toWrite5, n5);
 			vfs.Write(f2, toWrite2, n2);
 		}
-		if (f1) vfs.Close(f1);
-		if (f2) vfs.Close(f2);
-
-		f1 = vfs.Create("chunk1.bin\\dir1\\1b.txt");
-		if (f1) {
-			vfs.Write(f1, toWrite3, n3);
-			vfs.Write(f1, toWrite4, n4);
-		}
-		f2 = vfs.Create("chunk1.bin\\dir1\\1c.txt");
-		if (f2) {
-			vfs.Write(f2, toWrite4, n3);
-			vfs.Write(f2, toWrite5, n4);
-		}
-		if (f1) vfs.Close(f1);
-
-
 		File* f3;
 		do {
 			f3 = vfs.Open("chunk1.bin\\dir1\\1b.txt");
 		} while (!f3);
-		vfs.Read(f3, toRead3, n3);
 		vfs.Read(f3, toRead4, n4);
+		vfs.Read(f3, toRead3, n3);
+		vfs.Read(f3, toRead5, n5);
 
 		if (f2) vfs.Close(f2);
 		if (f3) vfs.Close(f3);
-//	});
-//	File* f3;
+	});
+
+	File* f1 = vfs.Create("chunk1.bin\\dir1\\1b.txt");
+	if (f1) {
+		vfs.Write(f1, toWrite4, n4);
+		vfs.Write(f1, toWrite3, n3);
+		vfs.Write(f1, toWrite5, n5);
+	}
+	File* f2 = vfs.Create("chunk1.bin\\dir1\\1c.txt");
+	if (f2) {
+		vfs.Write(f2, toWrite4, n3);
+		vfs.Write(f2, toWrite5, n4);
+	}
+	if (f1) vfs.Close(f1);
+	File* f3;
 	do {
 		f3 = vfs.Open("chunk1.bin\\dir1\\1a.txt");
 	} while (f3 == nullptr);
 	vfs.Read(f3, toRead1, n1);
 	vfs.Read(f3, toRead2, n2);
+	if (f2) vfs.Close(f2);
 	if (f3) vfs.Close(f3);
-//	t1.join(); 
-	cout << toWrite3 << endl;
-	cout << toRead3 << endl;
+	t1.join(); 
+	cout << toWrite5 << endl;
+	cout << toRead5 << endl;
 	cout << strcmp(toWrite1, toRead1) << endl;
 	cout << strcmp(toWrite2, toRead2) << endl;
-	cout << strcmp(toWrite3, toRead3) << endl;
 	cout << strcmp(toWrite4, toRead4) << endl;
+	cout << strcmp(toWrite3, toRead3) << endl;
+	cout << strcmp(toWrite5, toRead5) << endl;
 
 }

@@ -13,6 +13,7 @@ namespace TestTask
 		size_t curPos;
 		enum openType {read, write};
 		openType openFor;
+		size_t bytesBehind = 0;
 
 		File(std::string name, std::string _realFileName, std::unique_ptr<std::fstream> _fs, size_t currentPos, openType ot) : 
 			fullFilePath(name), realFileName(_realFileName), fs(std::move(_fs)), curPos(currentPos), openFor(ot) {};

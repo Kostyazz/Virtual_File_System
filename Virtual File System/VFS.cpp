@@ -136,33 +136,48 @@ size_t VFS::Read(File * f, char * buff, size_t len)
 	size_t curPos = f->curPos;
 	size_t bytesRead = 0;
 	size_t bytesFromBlock = 0;
-	_int64 bytesInBlock = 0;
+	size_t bytesInBlock = 0;
 	bool stop = 0;
 	//todo fix
 	mutexMap[f->realFileName]->lock_shared();
 
 	while (bytesRead < len && ! stop) {
+		//learn how many bytes of this block are part of the file
 		f->fs->read(static_cast<char*>((void*)&bytesInBlock), 8);
+		//jump to reading position
 		f->fs->seekp(curPos, ios::beg);
-		bytesFromBlock = min(size_t(min(len - bytesRead, BlockSize - (curPos % BlockSize) - 8)), bytesInBlock - curPos);
+		bytesFromBlock = min(len - bytesRead, BlockSize - curPos % BlockSize - 8);
+		//if we're still in first block of the file (containing it's name)
+		if (f->bytesBehind < BlockSize - MaxNameLength - 16) {
+			bytesFromBlock = min(bytesFromBlock, 16 + MaxNameLength + bytesInBlock - curPos % BlockSize);
+		} else {
+			bytesFromBlock = min(bytesFromBlock, 8 + bytesInBlock - curPos % BlockSize);
+		}
+		//reading file data
 		f->fs->read(buff + bytesRead, bytesFromBlock);
 		bytesRead += bytesFromBlock;
+		//if there's no more data, stop (even if we didn't reach 'len' value)
 		if (bytesFromBlock < BlockSize - (curPos % BlockSize) - 8) {
 			stop = true;
 		}
-		if (bytesRead < len && ! stop) {
+		if (! stop) {
+			//read next block position
 			f->fs->read(buf8, 8);
 			if (*nextLink <= 0) {
 				stop = true;
 			} else {
 				f->fs->seekp(*nextLink, ios::beg);
-				curPos = f->fs->tellp();
+				curPos = size_t(f->fs->tellp()) + 8;
 			}
+		} else {
+			curPos = f->fs->tellp();
 		}
 	}
 
 	mutexMap[f->realFileName]->unlock_shared();
 
+	f->curPos = curPos;
+	f->bytesBehind += bytesRead;
 	return bytesRead;
 }
 
@@ -198,6 +213,8 @@ size_t VFS::Write(File * f, char * buff, size_t len)
 			//saving current position (8 bytes before end of block)
 			curPos = size_t(f->fs->tellp());
 			f->fs->seekp(0, ios::cur);
+			//apparently switching read and write doesn't work without flushing occasionally
+			f->fs->flush();
 			//reading next block position
 			f->fs->read(buf8, 8);
 			//if 0, we will write to end of file
@@ -223,6 +240,7 @@ size_t VFS::Write(File * f, char * buff, size_t len)
 	f->curPos = curPos;
 
 	mutexMap[f->realFileName]->unlock();
+	f->bytesBehind += bytesWritten;
 	return bytesWritten;
 }
 
