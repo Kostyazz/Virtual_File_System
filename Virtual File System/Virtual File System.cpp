@@ -74,7 +74,7 @@ int main()
 			vfs.Write(f2, toWrite2, n2);
 		}
 		if (f1) vfs.Close(f1);
-
+		if (f2) vfs.Close(f2);
 
 		f1 = vfs.Create("chunk1.bin\\dir1\\1b.txt");
 		if (f1) {
@@ -99,15 +99,14 @@ int main()
 		if (f2) vfs.Close(f2);
 		if (f3) vfs.Close(f3);
 //	});
-/*	File* f3;
+//	File* f3;
 	do {
 		f3 = vfs.Open("chunk1.bin\\dir1\\1a.txt");
 	} while (f3 == nullptr);
 	vfs.Read(f3, toRead1, n1);
 	vfs.Read(f3, toRead2, n2);
-	if (f2) vfs.Close(f2);
 	if (f3) vfs.Close(f3);
-//	t1.join(); */
+//	t1.join(); 
 	cout << toWrite3 << endl;
 	cout << toRead3 << endl;
 	cout << strcmp(toWrite1, toRead1) << endl;

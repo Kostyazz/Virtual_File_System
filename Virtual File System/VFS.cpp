@@ -25,7 +25,7 @@ unique_ptr<vector<string> > parsePath(const char * name) {
 	return v;
 }
 
-size_t getHashPos(string s) {
+size_t const getHashPos(const string &s) {
 	return 8 + VFS::MaxNameLength + 8 * (hash<string>{}(s) % VFS::HashDivider);
 }
 
@@ -43,6 +43,9 @@ File * VFS::openOrCreate(const char * fullPath, bool open) {
 	bool notFound = false;
 
 	for (size_t i = 1; i < path->size(); i++) {
+		if (*nextLink == 0) {
+			*nextLink = *prevLink;
+		}
 		*nextLink += getHashPos((*path)[i]);
 		fs->seekp(*nextLink, ios::beg);
 
@@ -50,6 +53,7 @@ File * VFS::openOrCreate(const char * fullPath, bool open) {
 
 		*prevLink = *nextLink;
 		fs->read(buf8, 8); //reading nextLink value
+		
 		//unwinding collisions
 		while (*nextLink && strcmp(curName, (*path)[i].c_str())) {
 			*prevLink = *nextLink;
