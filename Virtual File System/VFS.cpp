@@ -75,12 +75,16 @@ File * VFS::openOrCreate(const char * fullPath, bool open) {
 
 			mutexMap[realFileName]->lock(); //only one thread can write to real file
 
+			//getting end of file position
 			fs->seekp(0, ios::end);
 			*nextLink = fs->tellp();
+			//jumping to position where link to new block should be
 			fs->seekp(*prevLink, ios::beg);
 			fs->write(buf8, 8);
+			//link for next collision is 0
 			fs->seekp(*nextLink, ios::beg);
 			fs->write(Zeroes, 8);
+			//writing directory or file name and finishing block with zeroes
 			fs->write((*path)[i].c_str(), (*path)[i].length());
 			fs->write(Zeroes, BlockSize - 8 - (*path)[i].length());
 			fs->flush();
@@ -100,6 +104,7 @@ File * VFS::openOrCreate(const char * fullPath, bool open) {
 	//curPos is position from where reading/writing will take place
 	size_t curPos = size_t(fs->tellp()) + 8;
 
+	//creating File object. nullptr if file already opened in another mode
 	if (open) {
 		if (mutexMap[fullPath]->try_lock_shared()) {
 			File* f = new File(fullPath, realFileName, std::move(fs), curPos, File::read);

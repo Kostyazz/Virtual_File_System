@@ -40,6 +40,8 @@ int main()
 	char toRead3[n3 + 1] = { 0 };
 	char toRead4[n4 + 1] = { 0 };
 	char toRead5[n5 + 1] = { 0 };
+	char toRead6[n2 + 1] = { 0 };
+	char toRead7[n1 + 1] = { 0 };
 	for (size_t i = 0; i < n1; i++) {
 		toWrite1[i] = 'A' + i % 26;
 	}
@@ -76,6 +78,26 @@ int main()
 		}
 		File* f3;
 		do {
+			f3 = vfs.Open("chunk1.bin\\dir2\\dir3\\dir4\\3a.txt");
+		} while (!f3);
+		vfs.Read(f3, toRead6, n2);
+		vfs.Read(f3, toRead7, n1);
+	});
+
+	std::thread t2([&]() {
+		File* f1 = vfs.Create("chunk1.bin\\dir2\\dir3\\dir4\\3a.txt");
+		if (f1) {
+			vfs.Write(f1, toWrite2, n2);
+			vfs.Write(f1, toWrite1, n1);
+		}
+		if (f1) vfs.Close(f1);
+		File* f2 = vfs.Create("chunk1.bin\\dir1\\2a.txt");
+		if (f2) {
+			vfs.Write(f2, toWrite2, n2);
+			vfs.Write(f2, toWrite5, n5);
+		}
+		File* f3;
+		do {
 			f3 = vfs.Open("chunk1.bin\\dir1\\1b.txt");
 		} while (!f3);
 		vfs.Read(f3, toRead4, n4);
@@ -107,12 +129,15 @@ int main()
 	if (f2) vfs.Close(f2);
 	if (f3) vfs.Close(f3);
 	t1.join(); 
-	cout << toWrite5 << endl;
-	cout << toRead5 << endl;
+	t2.join();
+	//cout << toWrite5 << endl;
+	//cout << toRead5 << endl;
 	cout << strcmp(toWrite1, toRead1) << endl;
 	cout << strcmp(toWrite2, toRead2) << endl;
 	cout << strcmp(toWrite4, toRead4) << endl;
 	cout << strcmp(toWrite3, toRead3) << endl;
 	cout << strcmp(toWrite5, toRead5) << endl;
+	cout << strcmp(toWrite2, toRead6) << endl;
+	cout << strcmp(toWrite1, toRead7) << endl;
 
 }

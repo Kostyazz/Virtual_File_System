@@ -13,7 +13,7 @@ namespace TestTask {
 		size_t Write(File* f, char* buff, size_t len) override;
 		void Close(File* f) override;
 		~VFS() override;
-		static const size_t BlockSize = 1000;
+		static const size_t BlockSize = 1024;
 		static const size_t MaxNameLength = 256; //including \0
 		static const size_t HashDivider = (BlockSize - MaxNameLength - 8) / 8; //95
 		static std::unordered_map<std::string, std::shared_ptr<std::shared_mutex> > mutexMap;
